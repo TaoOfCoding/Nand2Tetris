@@ -27,17 +27,46 @@
 
 CHIP CPU {
 
-    IN  inM[16],         // M value input  (M = contents of RAM[A])
-        instruction[16], // Instruction for execution
-        reset;           // Signals whether to re-start the current
-                         // program (reset==1) or continue executing
-                         // the current program (reset==0).
+  IN  inM[16],         // M value input  (M = contents of RAM[A])
+  instruction[16], // Instruction for execution
+  reset;           // Signals whether to re-start the current
+  // program (reset==1) or continue executing
+  // the current program (reset==0).
+  
+  OUT outM[16],        // M value output
+  writeM,          // Write to M? 
+  addressM[15],    // Address in data memory (of M)
+  pc[15];          // address of next instruction
+  
+  PARTS:
+  // Output writeM
+  And(a=instruction[15], b=instruction[3], out=writeM);
 
-    OUT outM[16],        // M value output
-        writeM,          // Write to M? 
-        addressM[15],    // Address in data memory (of M)
-        pc[15];          // address of next instruction
+  Mux16(a=instruction, b=aluOut, sel=instruction[15], out=aluOrInstruction);
 
-    PARTS:
-    // Put your code here:
+  // Load A Register if A-Instruction or destination of C-Instruction includes A
+  Not(in=instruction[15], out=ifAInstruction);
+  Or(a=ifAInstruction, b=instruction[5], out=ifLoadARegister);
+  // Below is A Register
+  ARegister(in=aluOrInstruction, load=ifLoadARegister, out=aRegisterOut, out[0..14]=addressM);
+  Mux16(a=aRegisterOut, b=inM, sel=instruction[12], out=aOrM);
+
+  // Below is D Register
+  And(a=instruction[15], b=instruction[4], out=ifLoadD);
+  DRegister(in=aluOut, load=ifLoadD, out=dRegisterOut);
+
+  // Determine if to jump
+  Not(in=isResultNegative, out=resultNotNegative);
+  Not(in=isResultZero, out=resultNotZero);
+  And(a=resultNotNegative, b=resultNotZero, out=isResultPositive);
+  And(a=isResultNegative, b=instruction[2], out=jump0);
+  And(a=isResultZero, b=instruction[1], out=jump1);
+  And(a=isResultPositive, b=instruction[0], out=jump2);
+  Or(a=jump0, b=jump1, out=jump01);
+  Or(a=jump01, b=jump2, out=toJumpIfC);
+  And(a=instruction[15], b=toJumpIfC, out=toJump);
+
+  // Load Program Counter if to jump
+  PC(in=aRegisterOut, load=toJump, inc=true, reset=reset, out[0..14]=pc);
+  ALU(x=dRegisterOut, y=aOrM, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=aluOut, out=outM, zr=isResultZero, ng=isResultNegative);
 }

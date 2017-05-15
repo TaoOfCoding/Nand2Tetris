@@ -23,9 +23,20 @@
  */
 
 CHIP Memory {
-    IN in[16], load, address[15];
-    OUT out[16];
-
-    PARTS:
-    // Put your code here:
+  IN in[16], load, address[15];
+  OUT out[16];
+  
+  PARTS:
+  DMux(in=load, sel=address[14], a=load0, b=load1);
+  RAM16K(in=in, load=load0, address=address[0..13], out=ram16kOut);
+  DMux(in=load1, sel=address[13], a=load2, b=load3);
+  Screen(in=in, load=load2, address=address[0..12], out=screenOut);
+  Or8Way(in=address[0..7], out=or1);
+  Or8Way(in[0..4]=address[8..12], in[5..7]=false, out=or2);
+  // ifkeyboard = 0 if address the address of keyboard
+  Or(a=or1, b=or2, out=ifKeyboard);
+  Keyboard(out=keyboardMap);
+  Mux16(b=false, a=keyboardMap, sel=ifKeyboard, out=keyboardMux);
+  Mux16(b=keyboardMux, a=screenOut, sel=address[13], out=keyboardScreenMux);
+  Mux16(b=keyboardScreenMux, a=ram16kOut, sel=address[14], out=out);
 }
